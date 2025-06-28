@@ -1,6 +1,7 @@
 package com.example.weather_app.fragments
 
 import android.os.Bundle
+import android.util.Log
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
@@ -9,9 +10,16 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.FragmentActivity
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
 import com.example.weather_app.adapters.VpAdapter
 import com.example.weather_app.databinding.FragmentMainBinding
 import com.google.android.material.tabs.TabLayoutMediator
+import org.json.JSONObject
+import com.android.volley.Request
+import com.example.weather_app.adapters.WeatherModel
+
+const val API_KEY = "b8c98a14f49644988ae92245252006"
 
 
 class MainFragment : Fragment() {
@@ -19,7 +27,7 @@ class MainFragment : Fragment() {
     private val fragmentList = listOf(HoursFragment.newInstance(), DaysFragment.newInstance())
     private val tabList = listOf("Hours", "Days")
     private lateinit var pLauncher: ActivityResultLauncher<String>
-    private  lateinit var binding: FragmentMainBinding
+    private lateinit var binding: FragmentMainBinding
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -33,13 +41,14 @@ class MainFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         checkPermission()
         initPagerAdapter()
+        requestWeatherData("Saint Petersburg")
     }
 
     private fun initPagerAdapter() = with(binding) {
         val adapter = VpAdapter(activity as FragmentActivity, fragmentList)
         vp.adapter = adapter
         // Подключаем TabLayout к ViewPager
-        TabLayoutMediator(tabLayout, vp) {tab, position ->
+        TabLayoutMediator(tabLayout, vp) { tab, position ->
             tab.text = tabList[position]
         }.attach()
     }
@@ -60,10 +69,89 @@ class MainFragment : Fragment() {
         }
     }
 
-    companion object {
 
+    private fun requestWeatherData(city: String) {
+        val url = "https://api.weatherapi.com/v1/forecast.json?key=" +
+                API_KEY +
+                "&q=" +
+                city +
+                "&days=3" +
+                "&aqi=no&alerts=no"
+
+        val queue = Volley.newRequestQueue(context)
+
+        val request = StringRequest(
+            Request.Method.GET,
+            url,
+            { response ->
+                parseWeatherData(response)
+
+            },
+            { error ->
+                Toast.makeText(
+                    context,
+                    "API error: ${error.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        )
+        queue.add(request)
+    }
+
+    private fun parseWeatherData(response: String) {
+        val jsonObject = JSONObject(response)
+        val daysList = parseDaysWeatherData(jsonObject)
+        parseCurrentWeatherData(jsonObject, daysList[0])
+
+    }
+
+
+    // Заполнение карточки текущими данными
+    private fun parseCurrentWeatherData(jsonObject: JSONObject, weatherItem: WeatherModel) {
+        val itemWeather = WeatherModel(
+            jsonObject.getJSONObject("location").getString("name"),
+            jsonObject.getJSONObject("current").getString("last_updated"),
+            jsonObject.getJSONObject("current")
+                .getJSONObject("condition").getString("text"),
+            jsonObject.getJSONObject("current")
+                .getJSONObject("condition").getString("icon"),
+            jsonObject.getJSONObject("current").getString("temp_c"),
+            weatherItem.maxTemp,
+            weatherItem.minTemp,
+            weatherItem.hours
+
+        )
+        Log.d("MyLog", "Time: ${itemWeather.hours}")
+
+    }
+
+
+    private fun parseDaysWeatherData(jsonObject: JSONObject): List<WeatherModel> {
+        val daysList = mutableListOf<WeatherModel>()
+        val daysArray = jsonObject.getJSONObject("forecast").getJSONArray("forecastday")
+        val name = jsonObject.getJSONObject("location").getString("name")
+        for (i in 0 until daysArray.length()) {
+            val day = daysArray[i] as JSONObject
+            val dayItem = WeatherModel(
+                name,
+                day.getString("date"),
+                day.getJSONObject("day").getJSONObject("condition").getString("text"),
+                day.getJSONObject("day").getJSONObject("condition").getString("icon"),
+                "",
+                day.getJSONObject("day").getString("maxtemp_c"),
+                day.getJSONObject("day").getString("mintemp_c"),
+                day.getJSONArray("hour").toString()
+
+            )
+            daysList.add(dayItem)
+        }
+        return daysList
+    }
+
+    companion object {
         @JvmStatic
         fun newInstance() =
             MainFragment()
     }
 }
+

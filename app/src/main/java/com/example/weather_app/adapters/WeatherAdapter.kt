@@ -16,13 +16,16 @@ class WeatherAdapter :ListAdapter<WeatherModel, WeatherAdapter.WeatherViewHolder
         val binding = ListItemBinding.bind(view)
         // 2. Заполнение элемента списка данными из модели
         fun bind(item: WeatherModel) = with(binding) {
-            val maxMinTemp = "${item.maxTemp}°C/${item.minTemp}°C"
-            val currentTemp = "${item.currentTemp}°C"
+            val maxTempFormatted = "${item.maxTemp}°C"
+            val minTempFormatted = "${item.minTemp}°C"
+            val currentTempFormatted = if (item.currentTemp.isNotEmpty()) "${item.currentTemp}°C" else ""
             tvDate.text = item.time
             tvCond.text = item.condition
-            tvTemp.text = currentTemp
+            // Отображаем текущую температуру или диапазон min/max
+            tvTemp.text = currentTempFormatted.ifEmpty {
+                "$maxTempFormatted / $minTempFormatted"
+            }
             Picasso.get().load("https:" + item.imageUrl).into(imStatus)
-
         }
     }
 

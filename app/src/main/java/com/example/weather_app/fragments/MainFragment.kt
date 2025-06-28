@@ -81,7 +81,7 @@ class MainFragment : Fragment() {
                 API_KEY +
                 "&q=" +
                 city +
-                "&days=3" +
+                "&days=7" +
                 "&aqi=no&alerts=no"
 
         val queue = Volley.newRequestQueue(context)
@@ -153,6 +153,7 @@ class MainFragment : Fragment() {
             )
             daysList.add(dayItem)
         }
+        model.liveDataList.value = daysList
         return daysList
     }
 

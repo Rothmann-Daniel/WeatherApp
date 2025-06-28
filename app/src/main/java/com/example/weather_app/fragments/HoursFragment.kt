@@ -13,7 +13,7 @@ import com.example.weather_app.adapters.WeatherAdapter
 import com.example.weather_app.adapters.WeatherModel
 import com.example.weather_app.databinding.FragmentHourBinding
 import org.json.JSONArray
-import org.json.JSONObject
+
 
 class HoursFragment : Fragment() {
     private lateinit var binding: FragmentHourBinding

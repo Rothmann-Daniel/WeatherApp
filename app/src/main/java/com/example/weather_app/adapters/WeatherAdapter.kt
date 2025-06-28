@@ -8,6 +8,7 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.weather_app.R
 import com.example.weather_app.databinding.ListItemBinding
+import com.squareup.picasso.Picasso
 
 class WeatherAdapter :ListAdapter<WeatherModel, WeatherAdapter.WeatherViewHolder>(WeatherComparator()) {
     // 1. Шаблон для хранения ссылок на View (хранит ссылки на элемент разметки)
@@ -15,9 +16,12 @@ class WeatherAdapter :ListAdapter<WeatherModel, WeatherAdapter.WeatherViewHolder
         val binding = ListItemBinding.bind(view)
         // 2. Заполнение элемента списка данными из модели
         fun bind(item: WeatherModel) = with(binding) {
+            val maxMinTemp = "${item.maxTemp}°C/${item.minTemp}°C"
+            val currentTemp = "${item.currentTemp}°C"
             tvDate.text = item.time
             tvCond.text = item.condition
-            tvTemp.text = item.currentTemp
+            tvTemp.text = currentTemp
+            Picasso.get().load("https:" + item.imageUrl).into(imStatus)
 
         }
     }

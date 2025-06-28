@@ -127,6 +127,7 @@ class MainFragment : Fragment() {
             weatherItem.hours
 
         )
+        // Заполнили карточку текущими данными и передаём данные в LiveData
         model.liveDataCurrent.value = itemWeather
         Log.d("MyLog", "Time: ${itemWeather.hours}")
 

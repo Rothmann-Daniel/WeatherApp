@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.FragmentActivity
+import androidx.fragment.app.activityViewModels
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import com.example.weather_app.adapters.VpAdapter
@@ -17,7 +18,9 @@ import com.example.weather_app.databinding.FragmentMainBinding
 import com.google.android.material.tabs.TabLayoutMediator
 import org.json.JSONObject
 import com.android.volley.Request
+import com.example.weather_app.MainViewModel
 import com.example.weather_app.adapters.WeatherModel
+import com.squareup.picasso.Picasso
 
 const val API_KEY = "b8c98a14f49644988ae92245252006"
 
@@ -28,6 +31,8 @@ class MainFragment : Fragment() {
     private val tabList = listOf("Hours", "Days")
     private lateinit var pLauncher: ActivityResultLauncher<String>
     private lateinit var binding: FragmentMainBinding
+
+    private val model : MainViewModel by activityViewModels ()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -42,6 +47,7 @@ class MainFragment : Fragment() {
         checkPermission()
         initPagerAdapter()
         requestWeatherData("Saint Petersburg")
+        updateCurrentData()
     }
 
     private fun initPagerAdapter() = with(binding) {
@@ -121,6 +127,7 @@ class MainFragment : Fragment() {
             weatherItem.hours
 
         )
+        model.liveDataCurrent.value = itemWeather
         Log.d("MyLog", "Time: ${itemWeather.hours}")
 
     }
@@ -146,6 +153,21 @@ class MainFragment : Fragment() {
             daysList.add(dayItem)
         }
         return daysList
+    }
+
+    private fun updateCurrentData() = with(binding) {
+        model.liveDataCurrent.observe(viewLifecycleOwner) {
+            Log.d("MyLog", "New data received: $it")
+            val maxMinTemp = "${it.maxTemp}°C/${it.minTemp}°C"
+            val currentTemp = "${it.currentTemp}°C"
+            tvCity.text = it.city
+            tvData.text = it.time
+            tvCondition.text = it.condition
+            tvCurrentTemp.text = currentTemp
+            Picasso.get().load("https:" + it.imageUrl).into(imWeather)
+            tvMaxMin.text = maxMinTemp
+
+        }
     }
 
     companion object {

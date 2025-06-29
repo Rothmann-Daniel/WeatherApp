@@ -83,7 +83,7 @@ object DialogManager {
         imm.hideSoftInputFromWindow(view.windowToken, 0)
     }
 
-    interface Listener {
+    fun interface Listener {
         fun onClick(cityName: String)
     }
 }

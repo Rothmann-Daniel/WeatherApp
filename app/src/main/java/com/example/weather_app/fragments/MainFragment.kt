@@ -6,275 +6,313 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
-import androidx.core.app.ActivityCompat
-import androidx.fragment.app.FragmentActivity
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import com.android.volley.Request
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
+import com.example.weather_app.DialogManager
+import com.example.weather_app.MainViewModel
+import com.example.weather_app.R
+import com.example.weather_app.adapters.WeatherModel
 import com.example.weather_app.adapters.VpAdapter
 import com.example.weather_app.databinding.FragmentMainBinding
-import com.google.android.material.tabs.TabLayoutMediator
-import org.json.JSONObject
-import com.android.volley.Request
-import com.example.weather_app.MainViewModel
-import com.example.weather_app.adapters.WeatherModel
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.tabs.TabLayoutMediator
 import com.squareup.picasso.Picasso
-import android.provider.Settings
-import com.example.weather_app.DialogManager
+import org.json.JSONObject
 
 
-const val API_KEY = "b8c98a14f49644988ae92245252006"
-
+private const val API_KEY = "b8c98a14f49644988ae92245252006"
+private const val DEFAULT_CITY = "Saint Petersburg"
 
 class MainFragment : Fragment() {
 
-    private lateinit var fLocationClient: FusedLocationProviderClient
-
-    // обязательно учитываем порядок добавления фрагментов в адаптер
-    private val fragmentList = listOf(HoursFragment.newInstance(), DaysFragment.newInstance())
-    private val tabList = listOf("Hours", "Days")
-
-    private lateinit var pLauncher: ActivityResultLauncher<String>
     private lateinit var binding: FragmentMainBinding
-
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
     private val model: MainViewModel by activityViewModels()
 
+    private val fragmentList = listOf(HoursFragment.newInstance(), DaysFragment.newInstance())
+    private lateinit var tabTitles: List<String>
+
+    // Permission launchers
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        handlePermissionResult(isGranted)
+    }
+
+    private val locationSettingsLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { checkLocationAndFetch() }
+
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
+        inflater: LayoutInflater,
+        container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         binding = FragmentMainBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        checkPermission()
-        initPagerAdapter()
-        updateCurrentData()
+        tabTitles = listOf(getString(R.string.hours), getString(R.string.days))
+        initLocationClient()
+        setupUI()
+        checkLocationAndFetch()
     }
 
     override fun onResume() {
         super.onResume()
-        getLocation()
+        if (this::binding.isInitialized && hasLocationPermission()) {
+            checkLocationAndFetch()
+        }
     }
 
+    private fun initLocationClient() {
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext())
+    }
 
-    private fun initPagerAdapter() = with(binding) {
-        fLocationClient = LocationServices.getFusedLocationProviderClient(requireContext())
-        val adapter = VpAdapter(activity as FragmentActivity, fragmentList)
-        vp.adapter = adapter
-        // Подключаем TabLayout к ViewPager
-        TabLayoutMediator(tabLayout, vp) { tab, position ->
-            tab.text = tabList[position]
+    private fun setupUI() {
+        setupViewPager()
+        setupSyncButton()
+        setupSearchButton()
+        setupWeatherObserver()
+    }
+
+    private fun setupViewPager() {
+        binding.vp.adapter = VpAdapter(requireActivity(), fragmentList)
+        TabLayoutMediator(binding.tabLayout, binding.vp) { tab, position ->
+            tab.text = tabTitles[position]
         }.attach()
-        ibSync.setOnClickListener {
-            tabLayout.selectTab(tabLayout.getTabAt(0))//переключаемся на первую вкладку
-            getLocation()
-        }
-        ibSearch.setOnClickListener {
-            DialogManager.searchByNameDialog(requireContext(), object : DialogManager.Listener {
-                override fun onClick(cityName: String) {
-                    requestWeatherData(cityName)
-                }
-            })
+    }
+
+    private fun setupSyncButton() {
+        binding.ibSync.setOnClickListener {
+            binding.tabLayout.selectTab(binding.tabLayout.getTabAt(0))
+            checkLocationAndFetch()
         }
     }
 
-
-    private fun permissionListener() {
-        pLauncher = registerForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) {
-            Toast.makeText(activity, "Permission is $it", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    private fun checkPermission() {
-        if (!isPermissionGranted(android.Manifest.permission.ACCESS_FINE_LOCATION)) {
-            permissionListener()
-            pLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
-        }
-    }
-
-
-    private fun requestWeatherData(city: String) {
-        val url = "https://api.weatherapi.com/v1/forecast.json?key=" +
-                API_KEY +
-                "&q=" +
-                city +
-                "&days=7" +
-                "&aqi=no&alerts=no"
-
-        val queue = Volley.newRequestQueue(context)
-
-        val request = StringRequest(
-            Request.Method.GET,
-            url,
-            { response ->
-                parseWeatherData(response)
-
-            },
-            { error ->
-                Toast.makeText(
-                    context,
-                    "API error: ${error.message}",
-                    Toast.LENGTH_LONG
-                ).show()
+    private fun setupSearchButton() {
+        binding.ibSearch.setOnClickListener {
+            DialogManager.searchByNameDialog(requireContext()) { cityName ->
+                requestWeatherData(cityName)
             }
+        }
+    }
+
+    private fun setupWeatherObserver() {
+        model.liveDataCurrent.observe(viewLifecycleOwner) { weather ->
+            updateWeatherUI(weather)
+        }
+    }
+
+    private fun checkLocationAndFetch() {
+        when {
+            !isGpsEnabled() -> showGpsDisabledAlert()
+            !hasLocationPermission() -> requestLocationPermission()
+            else -> fetchCurrentLocation()
+        }
+    }
+
+    private fun handlePermissionResult(isGranted: Boolean) {
+        if (isGranted) {
+            fetchCurrentLocation()
+        } else {
+            showPermissionDeniedMessage()
+            requestWeatherData(DEFAULT_CITY)
+        }
+    }
+
+    private fun fetchCurrentLocation() {
+        if (!hasLocationPermission()) return
+
+        val ct = CancellationTokenSource()
+        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, ct.token)
+            .addOnCompleteListener { task ->
+                task.result?.let { location ->
+                    requestWeatherData("${location.latitude},${location.longitude}")
+                } ?: run {
+                    requestWeatherData(DEFAULT_CITY)
+                }
+            }
+    }
+
+    private fun requestWeatherData(location: String) {
+        val url = "https://api.weatherapi.com/v1/forecast.json?" +
+                "key=$API_KEY&q=$location&days=7&aqi=no&alerts=no"
+
+        Volley.newRequestQueue(requireContext()).add(
+            StringRequest(
+                Request.Method.GET,
+                url,
+                { response -> handleWeatherResponse(response) },
+                { error -> handleWeatherError(error) }
+            )
         )
-        queue.add(request)
     }
 
-    private fun parseWeatherData(response: String) {
-        val jsonObject = JSONObject(response)
-        val daysList = parseDaysWeatherData(jsonObject)
-        parseCurrentWeatherData(jsonObject, daysList[0])
-
+    private fun handleWeatherResponse(response: String) {
+        try {
+            val jsonObject = JSONObject(response)
+            val daysList = parseDaysWeatherData(jsonObject)
+            parseCurrentWeatherData(jsonObject, daysList.first())
+        } catch (e: Exception) {
+            Log.e("WeatherError", "Failed to parse weather data", e)
+            showToast("Failed to parse weather data")
+        }
     }
 
+    private fun handleWeatherError(error: Throwable) {
+        Log.e("WeatherError", "API error", error)
+        showToast("Error fetching weather: ${error.message}")
+        requestWeatherData(DEFAULT_CITY)
+    }
 
-    // Заполнение карточки текущими данными
     private fun parseCurrentWeatherData(jsonObject: JSONObject, weatherItem: WeatherModel) {
-        val itemWeather = WeatherModel(
-            jsonObject.getJSONObject("location").getString("name"),
-            jsonObject.getJSONObject("current").getString("last_updated"),
-            jsonObject.getJSONObject("current")
-                .getJSONObject("condition").getString("text"),
-            jsonObject.getJSONObject("current")
-                .getJSONObject("condition").getString("icon"),
-            jsonObject.getJSONObject("current").getString("temp_c"),
-            weatherItem.maxTemp,
-            weatherItem.minTemp,
-            weatherItem.hours
+        val current = jsonObject.getJSONObject("current")
+        val condition = current.getJSONObject("condition")
 
+        model.liveDataCurrent.value = WeatherModel(
+            city = jsonObject.getJSONObject("location").getString("name"),
+            time = current.getString("last_updated"),
+            condition = condition.getString("text"),
+            imageUrl = condition.getString("icon"),
+            currentTemp = current.getString("temp_c"),
+            maxTemp = weatherItem.maxTemp,
+            minTemp = weatherItem.minTemp,
+            hours = weatherItem.hours
         )
-        // Заполнили карточку текущими данными и передаём данные в LiveData
-        model.liveDataCurrent.value = itemWeather
-        Log.d("MyLog", "Time: ${itemWeather.hours}")
-
     }
-
 
     private fun parseDaysWeatherData(jsonObject: JSONObject): List<WeatherModel> {
         val daysList = mutableListOf<WeatherModel>()
-        val daysArray = jsonObject.getJSONObject("forecast").getJSONArray("forecastday")
-        val name = jsonObject.getJSONObject("location").getString("name")
-        for (i in 0 until daysArray.length()) {
-            val day = daysArray[i] as JSONObject
-            val dayItem = WeatherModel(
-                name,
-                day.getString("date"),
-                day.getJSONObject("day").getJSONObject("condition").getString("text"),
-                day.getJSONObject("day").getJSONObject("condition").getString("icon"),
-                "",
-                day.getJSONObject("day").getString("maxtemp_c").toFloat().toInt().toString(),
-                day.getJSONObject("day").getString("mintemp_c").toFloat().toInt().toString(),
-                day.getJSONArray("hour").toString()
+        val locationName = jsonObject.getJSONObject("location").getString("name")
+        val forecastDays = jsonObject.getJSONObject("forecast").getJSONArray("forecastday")
 
-            )
-            daysList.add(dayItem)
+        for (i in 0 until forecastDays.length()) {
+            val day = forecastDays.getJSONObject(i)
+            val dayData = day.getJSONObject("day")
+            val condition = dayData.getJSONObject("condition")
+
+            daysList.add(WeatherModel(
+                city = locationName,
+                time = day.getString("date"),
+                condition = condition.getString("text"),
+                imageUrl = condition.getString("icon"),
+                currentTemp = "",
+                maxTemp = formatTemperature(dayData.getString("maxtemp_c")),
+                minTemp = formatTemperature(dayData.getString("mintemp_c")),
+                hours = day.getJSONArray("hour").toString()
+            ))
         }
+
         model.liveDataList.value = daysList
         return daysList
     }
 
-    private fun updateCurrentData() = with(binding) {
-        model.liveDataCurrent.observe(viewLifecycleOwner) {
-            Log.d("MyLog", "New data received: $it")
-            val maxTempFormatted = "${it.maxTemp}°C"
-            val minTempFormatted = "${it.minTemp}°C"
-            val maxMinTemp = "$maxTempFormatted / $minTempFormatted"
-            val currentTempFormatted =
-                if (it.currentTemp.isNotEmpty()) "${it.currentTemp}°C" else ""
-            tvCity.text = it.city
-            tvData.text = it.time
-            tvCondition.text = it.condition
-            tvCurrentTemp.text = currentTempFormatted.ifEmpty {
-                "$maxTempFormatted / $minTempFormatted"
+    private fun updateWeatherUI(weather: WeatherModel) {
+        with(binding) {
+            tvCity.text = weather.city
+            tvData.text = weather.time
+            tvCondition.text = weather.condition
+
+            val currentTemp = if (weather.currentTemp.isNotEmpty()) "${weather.currentTemp}°C" else ""
+            tvCurrentTemp.text = currentTemp.ifEmpty {
+                "${weather.maxTemp}°C / ${weather.minTemp}°C"
             }
-            Picasso.get().load("https:" + it.imageUrl).into(imWeather)
-            tvMaxMin.text = if (it.currentTemp.isEmpty()) {
-                ""
+
+            Picasso.get()
+                .load("https:${weather.imageUrl}")
+                .into(imWeather)
+
+            tvMaxMin.text = if (weather.currentTemp.isNotEmpty()) {
+                "${weather.maxTemp}°C / ${weather.minTemp}°C"
             } else {
-                maxMinTemp
+                ""
             }
         }
     }
 
-    private fun getLocation() {
-        // Проверяем включен ли GPS
+    // Permission and location helpers
+    private fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+
+    private fun isGpsEnabled(): Boolean {
         val locationManager = requireContext().getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val isGpsEnabled =  locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-                || locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-
-        if (!isGpsEnabled) {
-            // Показываем диалог для включения GPS
-            showGpsDisabledAlert()
-            requestWeatherData("Saint Petersburg") // Используем город по умолчанию
-            return
-        }
-
-        // Проверяем разрешения
-        if (ActivityCompat.checkSelfPermission(
-                requireContext(),
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED &&
-            ActivityCompat.checkSelfPermission(
-                requireContext(),
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
-
-        // Получаем местоположение
-        val ct = CancellationTokenSource()
-        fLocationClient
-            .getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, ct.token)
-            .addOnCompleteListener {
-                it.result?.let { location ->
-                    requestWeatherData("${location.latitude},${location.longitude}")
-                } ?: run {
-                    requestWeatherData("Saint Petersburg") // Если местоположение не получено
-                }
-            }
+        return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
     }
 
-    private fun showGpsDisabledAlert() {
-        AlertDialog.Builder(requireContext())
-            .setTitle("GPS Disabled")
-            .setMessage("GPS is required for accurate location. Enable now?")
-            .setPositiveButton("Settings") { _, _ ->
-                // Открываем настройки местоположения
-                startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+    private fun requestLocationPermission() {
+        if (shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)) {
+            showPermissionRationaleDialog()
+        } else {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
+    private fun showPermissionRationaleDialog() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.location_permission_needed)
+            .setMessage(R.string.location_permission_rationale)
+            .setPositiveButton(R.string.ok) { _, _ ->
+                locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             }
-            .setNegativeButton("Cancel") { dialog, _ ->
+            .setNegativeButton(R.string.cancel) { dialog, _ ->
                 dialog.dismiss()
-                requestWeatherData("Saint Petersburg")
+                requestWeatherData(DEFAULT_CITY)
             }
-            .setCancelable(false)
             .show()
     }
 
+    private fun showGpsDisabledAlert() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.gps_disabled)
+            .setMessage(R.string.gps_required_message)
+            .setPositiveButton(R.string.settings) { _, _ ->
+                locationSettingsLauncher.launch(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            }
+            .setNegativeButton(R.string.cancel) { dialog, _ ->
+                dialog.dismiss()
+                requestWeatherData(DEFAULT_CITY)
+            }
+            .show()
+    }
+
+    private fun showPermissionDeniedMessage() {
+        showToast(getString(R.string.location_permission_denied))
+    }
+
+    private fun showToast(message: String) {
+        Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
+    }
+
+    private fun formatTemperature(temp: String) = temp.toFloat().toInt().toString()
 
     companion object {
-        @JvmStatic
-        fun newInstance() =
-            MainFragment()
+        fun newInstance() = MainFragment()
     }
 }
-

@@ -256,13 +256,13 @@ class MainFragment : Fragment() {
 
     private fun showGpsDisabledAlert() {
         AlertDialog.Builder(requireContext())
-            .setTitle("GPS отключен")
-            .setMessage("Для определения вашего местоположения необходимо включить GPS. Включить сейчас?")
-            .setPositiveButton("Да") { _, _ ->
+            .setTitle("GPS Disabled")
+            .setMessage("GPS is required for accurate location. Enable now?")
+            .setPositiveButton("Settings") { _, _ ->
                 // Открываем настройки местоположения
                 startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
             }
-            .setNegativeButton("Нет") { dialog, _ ->
+            .setNegativeButton("Cancel") { dialog, _ ->
                 dialog.dismiss()
                 requestWeatherData("Saint Petersburg")
             }

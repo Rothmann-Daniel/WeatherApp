@@ -4,5 +4,5 @@
     <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="hours">HOURS</string>
     <string name="days">DAYS</string>
-    <string name="location">"Enable location?"</string>
+    <string name="location">Включить геолокацию?</string>
 </resources>

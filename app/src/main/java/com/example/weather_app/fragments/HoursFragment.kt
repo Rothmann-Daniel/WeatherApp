@@ -42,7 +42,7 @@ class HoursFragment : Fragment() {
         // 1. Настраиваем расположение элементов (вертикальный список)
         rcView.layoutManager = LinearLayoutManager(activity)
         // 2. Создаём адаптер
-        adapter = WeatherAdapter()
+        adapter = WeatherAdapter(null)
         // 3. Привязываем адаптер к RecyclerView
         rcView.adapter = adapter
         // 4. Передаём данные в адаптер

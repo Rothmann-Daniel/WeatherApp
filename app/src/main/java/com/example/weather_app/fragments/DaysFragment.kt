@@ -10,9 +10,10 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.weather_app.MainViewModel
 import com.example.weather_app.R
 import com.example.weather_app.adapters.WeatherAdapter
+import com.example.weather_app.adapters.WeatherModel
 import com.example.weather_app.databinding.FragmentDaysBinding
 
-class DaysFragment : Fragment() {
+class DaysFragment : Fragment(), WeatherAdapter.OnItemClickListener {
 
 private lateinit var binding: FragmentDaysBinding
 private lateinit var adapter: WeatherAdapter
@@ -36,7 +37,7 @@ private val model: MainViewModel by activityViewModels()
 
     private fun initRcViewDays() = with(binding) {
         // 1. Создаём адаптер
-        adapter = WeatherAdapter()
+        adapter = WeatherAdapter(this@DaysFragment)
         // 2. Настраиваем расположение элементов (вертикальный список)
         rcViewDays.layoutManager = LinearLayoutManager(activity)
         // 3. Привязываем адаптер к RecyclerView
@@ -47,5 +48,9 @@ private val model: MainViewModel by activityViewModels()
 
         @JvmStatic
         fun newInstance() = DaysFragment()
+    }
+
+    override fun onItemClick(item: WeatherModel) {
+      model.liveDataCurrent.value = item
     }
 }

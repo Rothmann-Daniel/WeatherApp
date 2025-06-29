@@ -10,12 +10,23 @@ import com.example.weather_app.R
 import com.example.weather_app.databinding.ListItemBinding
 import com.squareup.picasso.Picasso
 
-class WeatherAdapter :ListAdapter<WeatherModel, WeatherAdapter.WeatherViewHolder>(WeatherComparator()) {
+class WeatherAdapter(val onItemClick: OnItemClickListener?) :ListAdapter<WeatherModel, WeatherAdapter.WeatherViewHolder>(WeatherComparator()) {
     // 1. Шаблон для хранения ссылок на View (хранит ссылки на элемент разметки)
-    class WeatherViewHolder (view: View) : RecyclerView.ViewHolder(view) {
+    class WeatherViewHolder (view: View, val listener: OnItemClickListener?) : RecyclerView.ViewHolder(view) {
         val binding = ListItemBinding.bind(view)
+
+        var itemTemp: WeatherModel? = null
+        init {
+            itemView.setOnClickListener {
+                itemTemp?.let {
+                   it1-> listener?.onItemClick(it1)
+                }
+            }
+        }
+
         // 2. Заполнение элемента списка данными из модели
         fun bind(item: WeatherModel) = with(binding) {
+            itemTemp = item
             val maxTempFormatted = "${item.maxTemp}°C"
             val minTempFormatted = "${item.minTemp}°C"
             val currentTempFormatted = if (item.currentTemp.isNotEmpty()) "${item.currentTemp}°C" else ""
@@ -42,10 +53,14 @@ class WeatherAdapter :ListAdapter<WeatherModel, WeatherAdapter.WeatherViewHolder
     // 3. RecyclerView вызывает метод для создания шаблона: Создание view == количество элементов в списке данных WeatherModel
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): WeatherViewHolder {
         val  view = LayoutInflater.from(parent.context).inflate(R.layout.list_item, parent, false)
-        return WeatherViewHolder(view) // Создаём ViewHolder с разметкой
+        return WeatherViewHolder(view, onItemClick) // Создаём ViewHolder с разметкой
     }
     // 4. RecyclerView вызывает этот метод для заполнения данными
     override fun onBindViewHolder(holder: WeatherViewHolder, position: Int) {
         holder.bind(getItem(position)) // Передаём данные в bind()
+    }
+
+    interface OnItemClickListener {
+        fun onItemClick(item: WeatherModel)
     }
 }

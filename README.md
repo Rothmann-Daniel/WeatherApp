@@ -3,9 +3,8 @@
 
 Стек технологий
 Язык программирования: Kotlin
-Архитектура: MVVM (Model-View-ViewModel)
 Библиотеки и инструменты:
-Сетевые запросы: Volley (использовал для ознакомления, как альтернативну Retrofit) — для сетевых запросов к API
+Сетевые запросы: Volley (использовал для ознакомления, как альтернативу Retrofit) — для сетевых запросов к API
 Дополнительные библиотеки:
 Gson – для парсинга JSON
 UI: XML-разметка (+ ViewBinding)
@@ -17,7 +16,6 @@ The WeatherApp project is an application for viewing the current weather and for
 
 Technology stack
 Programming language: Kotlin
-Architecture: MVC (Model-View-ViewModel)
 Libraries and tools:
 Network requests: Volley (used for familiarization, as an alternative to Retrofit) — for network API requests
 Additional libraries:
